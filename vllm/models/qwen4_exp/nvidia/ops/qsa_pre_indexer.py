@@ -20,8 +20,12 @@ def _norm_rope(
     IS_MROPE: tl.constexpr,
     MROPE_H: tl.constexpr,
     MROPE_W: tl.constexpr,
+    MAX_POS: tl.constexpr,
 ):
     """Apply Gemma RMSNorm and selected-axis NeoX RoPE to register rows."""
+    pos_t = tl.minimum(tl.maximum(pos_t, 0), MAX_POS)  # MBX SM121 rope clamp
+    pos_h = tl.minimum(tl.maximum(pos_h, 0), MAX_POS)
+    pos_w = tl.minimum(tl.maximum(pos_w, 0), MAX_POS)
     TILE_T: tl.constexpr = x.shape[0]
     TILE_H: tl.constexpr = x.shape[1]
     D: tl.constexpr = x.shape[2]
@@ -132,6 +136,7 @@ def _qsa_pre_indexer_kernel(
     CACHE_HAS_ROPE_POS: tl.constexpr,
     MROPE_H: tl.constexpr,
     MROPE_W: tl.constexpr,
+    MAX_POS: tl.constexpr,
 ):
     pid = tl.program_id(0)
     # K work occupies the first programs; the remaining programs tile Q. This
@@ -183,6 +188,7 @@ def _qsa_pre_indexer_kernel(
             IS_2D_POSITIONS,
             MROPE_H,
             MROPE_W,
+            MAX_POS,
         )
         tl.store(
             q_out_ptr
@@ -331,6 +337,7 @@ def _qsa_pre_indexer_kernel(
                 IS_K_MROPE,
                 MROPE_H,
                 MROPE_W,
+                MAX_POS,
             )
             compressed_block = (compressed_slot // COMP_PAGE_SIZE).to(tl.int64)
             compressed_row = compressed_slot % COMP_PAGE_SIZE
@@ -501,6 +508,7 @@ def qsa_pre_indexer(
         CACHE_HAS_ROPE_POS=cache_has_rope_pos,
         MROPE_H=section[1],
         MROPE_W=section[2],
+        MAX_POS=max(int(cos_sin_cache.shape[0]) - 1, 0),
         num_warps=1,
     )
 
