@@ -268,10 +268,12 @@ class Qwen4ExpDecoderLayer(nn.Module):
         self.attn_hyper_connection = GatedResidual(
             hc_config,
             prefix=maybe_prefix(prefix, "attn_hyper_connection"),
+            quant_config=quant_config,  # MBX hc quant
         )
         self.mlp_hyper_connection = GatedResidual(
             hc_config,
             prefix=maybe_prefix(prefix, "mlp_hyper_connection"),
+            quant_config=quant_config,  # MBX hc quant
         )
 
     def forward(
@@ -436,6 +438,7 @@ class Qwen4ExpModel(nn.Module):
                 hc_config,
                 use_combine=False,
                 prefix=maybe_prefix(prefix, "hyper_connection_mixer"),
+                quant_config=vllm_config.quant_config,  # MBX hc quant
             )
         else:
             self.hyper_connection_mixer = None
