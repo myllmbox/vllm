@@ -408,7 +408,12 @@ class Qwen4ExpMTP(nn.Module, SupportsPP, Qwen4ExpMixtureOfExperts, SupportsRepla
         else:
             self.lm_head = PPMissingLayer()
 
-        self.logits_processor = LogitsProcessor(config.vocab_size)
+        # MBX draft scale: sharpen the drafter's logits (exact — the verifier keeps the target's distribution)
+        import os as _os
+        _mbx_draft_scale = float(_os.environ.get("MBX_MTP_DRAFT_SCALE", "1.0"))
+        if _mbx_draft_scale != 1.0:
+            print(f"MBX MTP: draft logits scale = {_mbx_draft_scale} (MBX_MTP_DRAFT_SCALE)", flush=True)
+        self.logits_processor = LogitsProcessor(config.vocab_size, scale=_mbx_draft_scale)
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors
         )
