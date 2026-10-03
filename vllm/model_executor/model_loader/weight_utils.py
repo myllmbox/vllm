@@ -863,6 +863,20 @@ def _prefetch_all_checkpoints(
     threading.Thread(target=_run_prefetch, daemon=True).start()
 
 
+def _mbx_fadvise_dontneed(path: str) -> None:
+    """MBX: page-cache hygiene on unified memory — drop this shard's pages now that its tensors are consumed."""
+    if os.environ.get("MBX_LOAD_DROP_CACHE", "1") != "1":
+        return
+    try:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+
+
 def safetensors_weights_iterator(
     hf_weights_files: list[str],
     use_tqdm_on_load: bool,
@@ -961,6 +975,7 @@ def safetensors_weights_iterator(
             for name, param in state_dict.items():
                 if not should_skip_weight(name, local_expert_ids):
                     yield name, param
+            _mbx_fadvise_dontneed(st_file)
         elif safetensors_load_strategy == "torchao":
             # we can't load flattened torchao tensor subclasses directly into the model
             # instead we reconstruct the subclasses here before returning
@@ -991,6 +1006,7 @@ def safetensors_weights_iterator(
                     unflatten_tensor_state_dict(state_dict, metadata)
                 )
             yield from unflattened_state_dict.items()
+            _mbx_fadvise_dontneed(st_file)
         else:
             with safe_open(st_file, framework="pt") as f:
                 for name in f.keys():  # noqa: SIM118
@@ -998,6 +1014,7 @@ def safetensors_weights_iterator(
                         continue
                     param = f.get_tensor(name)
                     yield name, param
+            _mbx_fadvise_dontneed(st_file)
 
 
 def multi_thread_safetensors_weights_iterator(
