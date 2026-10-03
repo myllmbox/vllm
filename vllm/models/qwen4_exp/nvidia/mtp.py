@@ -402,6 +402,7 @@ class Qwen4ExpMTP(nn.Module, SupportsPP, Qwen4ExpMixtureOfExperts, SupportsRepla
                 self.lm_head = ParallelLMHead(
                     config.vocab_size,
                     config.hidden_size,
+                    quant_config=vllm_config.quant_config,  # MBX lm_head quant
                     prefix=maybe_prefix(prefix, "lm_head"),
                 )
         else:
